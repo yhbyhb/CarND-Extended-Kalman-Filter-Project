@@ -32,39 +32,23 @@ void KalmanFilter::Update(const VectorXd &z) {
   // update the state by using Kalman Filter equations
   VectorXd z_pred = H_ * x_;
   VectorXd y = z - z_pred;
-  MatrixXd Ht = H_.transpose();
-  MatrixXd S = H_ * P_ * Ht + R_;
-  MatrixXd Si = S.inverse();
-  MatrixXd PHt = P_ * Ht;
-  MatrixXd K = PHt * Si;
-
-  //new estimate
-  x_ = x_ + (K * y);
-  long x_size = x_.size();
-  MatrixXd I = MatrixXd::Identity(x_size, x_size);
-  P_ = (I - K * H_) * P_;
+  
+  UpdateCommon(y);
 }
 
 void KalmanFilter::UpdateEKF(const VectorXd &z) {
   // update the state by using Extended Kalman Filter equations
 
-  auto normalize_angle = [](float angle) -> float
+  auto normalize_angle = [](double& phi)
   {
-    while ( angle > M_PI )
-    {
-      angle -= 2 * M_PI;
-    }
-    while (angle < -M_PI)
-    {
-      angle += 2 * M_PI;
-    }
-    return angle;
+    phi = atan2(sin(phi), cos(phi));
   };
-  auto px = x_(0);
-  auto py = x_(1);
-  auto vx = x_(2);
-  auto vy = x_(3);
-  auto sq = sqrt(px * px + py * py);
+
+  const double px = x_(0);
+  const double py = x_(1);
+  const double vx = x_(2);
+  const double vy = x_(3);
+  const double sq = sqrt(px * px + py * py);
 
   VectorXd z_pred = VectorXd(3);
   //h(x')
@@ -74,17 +58,17 @@ void KalmanFilter::UpdateEKF(const VectorXd &z) {
   VectorXd y = z - z_pred;
 
   //normalize phi
-  y(1) = normalize_angle(y(1));
+  normalize_angle(y(1));
   
-  MatrixXd Ht = H_.transpose();
-  MatrixXd S = H_ * P_ * Ht + R_;
-  MatrixXd Si = S.inverse();
-  MatrixXd PHt = P_ * Ht;
-  MatrixXd K = PHt * Si;
-  
-  //new estimate
-  x_ = x_ + (K * y);
-  long x_size = x_.size();
-  MatrixXd I = MatrixXd::Identity(x_size, x_size);
-  P_ = (I - K * H_) * P_;
+  UpdateCommon(y);
+}
+
+void KalmanFilter::UpdateCommon(const VectorXd& y)
+{
+  const MatrixXd PHt = P_ * H_.transpose();
+  const MatrixXd S = H_ * PHt + R_;
+  const MatrixXd K = PHt * S.inverse();
+
+  x_ += K * y;
+  P_ -= K * H_ * P_;
 }
